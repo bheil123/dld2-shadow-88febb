@@ -371,7 +371,7 @@ body.simple #detail .statgrid{margin-top:4px}
 
 function mkLines(canvas, mat, yfmt, leaders){
   const ds = mat.map((row,i)=>{const c=medalIn(i,leaders);return {label:P.names[i],data:row,
-     borderColor:c||GREY,borderWidth:c?2.5:1,pointRadius:c?3:(P.labels.length<3?3:0),order:c?1:2,
+     borderColor:c||GREY,borderWidth:c?2.5:1,pointRadius:P.labels.length<3?3:0,pointHoverRadius:4,order:c?1:2,
      pointBackgroundColor:c||GREY,pointBorderColor:c||GREY,tension:.25,fill:false,_i:i};});
   return new Chart(document.getElementById(canvas),{type:'line',
     data:{labels:P.labels,datasets:ds},
@@ -387,7 +387,7 @@ function paintLines(){
   [[cP1,LEAD_P1],[cE,LEAD_E]].forEach(([ch,leaders])=>{ch.data.datasets.forEach(d=>{
     const on=d._i===SEL, c=medalIn(d._i,leaders), col=on?GREEN:(c||GREY);
     d.borderColor=col; d.borderWidth=on?4:(c?2.5:1); d.order=on?0:(c?1:2);
-    d.pointRadius=on?5:(c?3:(P.labels.length<3?3:0)); d.pointBackgroundColor=col; d.pointBorderColor=col;
+    d.pointRadius=P.labels.length<3?(on?5:3):0; d.pointBackgroundColor=col; d.pointBorderColor=col;
   });ch.update('none');});
 }
 
@@ -601,7 +601,7 @@ Chart.defaults.color = '#c9d3df';
 Chart.defaults.borderColor = 'rgba(174,185,199,.14)';
 Chart.defaults.font.family = "'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
 
-const GREY='rgba(139,152,169,.30)', GREEN=getComputedStyle(document.documentElement).getPropertyValue('--green').trim();
+const GREY='rgba(139,152,169,.45)', GREEN=getComputedStyle(document.documentElement).getPropertyValue('--green').trim();
 const MEDALS=[getComputedStyle(document.documentElement).getPropertyValue('--gold').trim(),
               getComputedStyle(document.documentElement).getPropertyValue('--silver').trim(),
               getComputedStyle(document.documentElement).getPropertyValue('--bronze').trim()];
@@ -892,7 +892,7 @@ rebuild();
    tab regains focus; if a newer build is live it reloads to a cache-busted URL (guaranteed fresh,
    no reload loop, and ?embed=1 is preserved). */
 (function(){
-  var BUILD='6d2ec2101b0c';
+  var BUILD='9de8adc171c2';
   function check(){
     fetch('version.txt?t='+Date.now(),{cache:'no-store'})
       .then(function(r){return r.ok?r.text():null;})
@@ -967,7 +967,15 @@ function renderSankey(){
   let y=topY, leftRects=[];
   teams.forEach(t=>{const h=Math.max(14, t.pts*perPt); leftRects.push({t:t,y:y,h:h,mid:y+h/2}); y+=h+gap;});
   const rightTotalH=botY-topY-3*gap;
-  const rightH=SLF.map(s=>s*rightTotalH);
+  // Spot boxes get a MIN height: the 4th-place slice (5% of the pot) yields a ~6px box in a
+  // 1-team layout — shorter than its own 9px compact label (Bill, Jul 8). Floor at 20px (label
+  // baseline mid+3 needs ~mid±10) and take the deficit from the above-floor spots proportionally
+  // to their excess, so the column still ends exactly at botY.
+  const MINSPOT=20;
+  let rightH=SLF.map(s=>s*rightTotalH);
+  const skNeed=rightH.reduce((s,h)=>s+Math.max(0,MINSPOT-h),0);
+  const skFlex=rightH.reduce((s,h)=>s+(h>MINSPOT?h-MINSPOT:0),0);
+  if(skNeed>0&&skFlex>0) rightH=rightH.map(h=>h<MINSPOT?MINSPOT:h-(h-MINSPOT)*skNeed/skFlex);
   let ry=topY, rightRects=[];
   // Spot $-values derived from POOL × SLF[i] so a 2028 redeploy that changes either propagates here.
   const spots=[{name:'Champ',cls:'champ'},{name:'Runner-up',cls:'ru'},
